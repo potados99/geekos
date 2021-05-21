@@ -89,10 +89,8 @@ int Spawn_With_Path(const char *program, const char *command,
     int pid = -1;
     char exeName[(CMDLEN * 2) + 5];
 
-
     /* Try executing program as specified */
     pid = Spawn_Program(program, command, background);
-
 
     if(pid == ENOTFOUND && strchr(program, '/') == 0) {
         /* Search for program on path. */
@@ -120,8 +118,8 @@ int Spawn_With_Path(const char *program, const char *command,
 
             if(!Ends_With(exeName, ".exe"))
                 strcat(exeName, ".exe");
-
-            /*Print("exeName=%s\n", exeName); */
+			
+            /* Print("exeName=%s\n", exeName); */
             pid = Spawn_Program(exeName, command, background);
             if(pid != ENOTFOUND)
                 break;

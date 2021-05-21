@@ -265,7 +265,7 @@ static int Sys_Spawn(struct Interrupt_State *state) {
      * from user space, we can try to actually spawn the process.
      */
     rc = Spawn(program, command, &process, state->edi);
-
+	
     if(rc == 0) {
         KASSERT(process != 0);
         rc = process->pid;
@@ -338,7 +338,56 @@ extern struct Thread_Queue s_runQueue;
  *          N the number of entries in the table, on success
  */
 static int Sys_PS(struct Interrupt_State *state) {
-    TODO_P(PROJECT_BACKGROUND_JOBS, "Sys_PS system call");
+    // PROJECT_BACKGROUND_JOBS, "Sys_PS system call"
+	int len = state->ecx;
+	if(!Validate_User_Memory(CURRENT_THREAD->userContext, state->ebx, sizeof(struct Process_Info)*len, 1))
+		return -1;
+
+	struct Kernel_Thread *kt = Get_Front_Of_All_Thread_List(&s_allThreadList);
+	struct Process_Info pInfo[30]; // if data too large, process stoped.
+	
+	int i;	
+	for(i = 0; i < len; ++i) {
+		// no process
+		if(kt->pid <= 0) {
+			kt = Get_Next_In_All_Thread_List(kt);
+			continue;
+		}
+
+		// status
+		if(kt->refCount==0 && !kt->alive) pInfo[i].status = STATUS_ZOMBIE;
+		if(kt->refCount==1 && !kt->alive) pInfo[i].status = STATUS_ZOMBIE;
+		if(kt->refCount==1 && kt->alive) pInfo[i].status = STATUS_BLOCKED;
+		if(kt->refCount==2 && kt->alive) pInfo[i].status = STATUS_RUNNABLE;
+		
+		// pid & ppid
+		pInfo[i].pid = kt->pid;
+		pInfo[i].parent_pid = kt->owner->pid;
+		if(pInfo[i].parent_pid < 0) pInfo[i].parent_pid = 0;
+
+		pInfo[i].priority = kt->priority;
+		pInfo[i].affinity = kt->affinity;
+		pInfo[i].currCore = 0;
+		pInfo[i].totalTime = (int)kt->totalTime;
+		strcpy(pInfo[i].name, kt->threadName);
+		if(strlen(kt->threadName) == 0) strcpy(pInfo[i].name, kt->userContext->name);
+		kt = Get_Next_In_All_Thread_List(kt);
+	}
+
+	// runnable
+	struct Kernel_Thread *runnable = Get_Next_Runnable();
+	while(runnable != NULL) {
+		for(i = 0; i < len; ++i) {
+			if(runnable->pid == pInfo[i].pid) {
+				pInfo[i].status = STATUS_RUNNABLE;
+				break;
+			}
+		}
+		runnable = NULL;
+	}
+
+	Copy_To_User(state->ebx, &pInfo, len*sizeof(struct Process_Info));
+
     return 0;
 }
 
@@ -351,7 +400,27 @@ static int Sys_PS(struct Interrupt_State *state) {
  * Returns: 0 on success or error code (< 0) on error
  */
 static int Sys_Kill(struct Interrupt_State *state) {
-    TODO_P(PROJECT_SIGNALS, "Sys_Kill system call");
+    // PROJECT_SIGNALS, "Sys_Kill system call
+	
+	int target_pid = state->ebx;
+
+	// find target
+	struct Kernel_Thread* kt = Get_Front_Of_All_Thread_List(&s_allThreadList);
+	int i = 0;
+	for(i = 0; i < 20; ++i) {
+		kt = Get_Next_In_All_Thread_List(kt);
+		if(kt->pid == target_pid) break;
+	}
+	
+	if(kt->pid <= 0) return -1; // no process
+	if(strlen(kt->threadName) > 0) return -1; // kernel process
+	
+	kt->refCount--;
+	kt->detached = false;
+	
+	//Remove_Thread(&s_runQueue, kt);
+	Remove_From_All_Thread_List(&s_allThreadList, kt);
+
     return 0;
 }
 

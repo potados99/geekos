@@ -107,7 +107,7 @@ int Spawn(const char *program, const char *command,
 
     rc = Read_Fully(program, (void **)&exeFileData, &exeFileLength);
     rc2 = Parse_ELF_Executable(exeFileData, exeFileLength, &exeFormat);
-    rc3 = Load_User_Program(exeFileData, exeFileLength, &exeFormat, 
+	rc3 = Load_User_Program(exeFileData, exeFileLength, &exeFormat, 
 			command, &userContext);
    if(rc|rc2|rc3) {
         rc |= rc2 | rc3;        

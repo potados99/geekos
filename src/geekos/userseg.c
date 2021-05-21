@@ -63,7 +63,10 @@ extern struct User_Context *Create_User_Context(ulong_t size) {
         Print("Size of user memory == %lu (%lx) (%lu pages)\n", size,
               size, size / PAGE_SIZE);
 
-    TODO("Allocate memory for the user context");
+    // Allocate memory for the user context
+	context = (struct User_Context *)Malloc(sizeof(struct User_Context));
+	if(context != 0)
+		context->memory = Malloc(size);
 
     if(context == 0 || context->memory == 0)
         goto fail;
@@ -83,9 +86,15 @@ extern struct User_Context *Create_User_Context(ulong_t size) {
     if(userDebug)
         Print("Allocated descriptor %d for LDT\n",
               Get_Descriptor_Index(context->ldtDescriptor));
-    TODO("Init LDT descriptor");
-    TODO("Set ldt selector");
-    TODO("Initialize code and data segments within the LDT");
+
+    // Init LDT descriptor
+	Init_LDT_Descriptor(context->ldtDescriptor, context->ldt, NUM_USER_LDT_ENTRIES);
+    // Set ldt selector
+	context->ldtSelector = Selector(KERNEL_PRIVILEGE, true, Get_Descriptor_Index(context->ldtDescriptor));
+    // Initialize code and data segments within the LDT
+	Init_Code_Segment_Descriptor(&context->ldt[0], (ulong_t)context->memory, size / PAGE_SIZE, USER_PRIVILEGE);
+	Init_Data_Segment_Descriptor(&context->ldt[1], (ulong_t)context->memory, size / PAGE_SIZE, USER_PRIVILEGE);
+	context->csSelector = Selector(USER_PRIVILEGE, false, 0); // this
     context->dsSelector = Selector(USER_PRIVILEGE, false, 1);
 
     /* Nobody is using this user context yet */
@@ -170,9 +179,19 @@ int Load_User_Program(char *exeFileData, ulong_t exeFileLength
     ulong_t size, argBlockAddr;
     struct User_Context *userContext = 0;
 
-    TODO("Find maximum virtual address");
+	if(exeFileData == 0) return -2; // exception, aa
 
-    TODO("Determine size required for argument block");
+    // Find maximum virtual address
+	for(i = 0; i < exeFormat->numSegments; ++i) {
+		struct Exe_Segment *segment = &exeFormat->segmentList[i];
+		ulong_t topva = segment->startAddress + segment->sizeInMemory;
+
+		if (topva > maxva)
+			maxva = topva;
+	}
+
+    // Determine size required for argument block
+	Get_Argument_Block_Size(command, &numArgs, &argBlockSize);
 
     /*
      * Now we can determine the size of the memory block needed
@@ -187,13 +206,28 @@ int Load_User_Program(char *exeFileData, ulong_t exeFileLength
     if(userContext == 0)
         return -1;
 
-    TODO("Load segment data into memory");
+    // Load segment data into memory
+//	unsigned long virtSize = size;
+//	virtSpace = Malloc(virtSize);
+//	memset((char *) virtSpace, '\0', virtSize);
 
-    TODO("Format argument block");
+	for (i = 0; i < exeFormat->numSegments; ++i) {
+		struct Exe_Segment *segment = &exeFormat->segmentList[i];
 
-    TODO("Fill in code entry point");
+		memcpy(userContext->memory + segment->startAddress,
+				exeFileData + segment->offsetInFile,
+				segment->lengthInFile);
+	}
 
-    TODO("Fill in addresses of argument block and stack");
+    // Format argument block
+	Format_Argument_Block(userContext->memory + argBlockAddr, numArgs, argBlockAddr, command);
+
+    // Fill in code entry point
+	userContext->entryAddr = exeFormat->entryAddr;
+
+    // Fill in addresses of argument block and stack"
+	userContext->argBlockAddr = argBlockAddr;
+	userContext->stackPointerAddr = argBlockAddr;
 
     *pUserContext = userContext;
     return 0;
