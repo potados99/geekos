@@ -120,9 +120,9 @@ void Main(struct Boot_Info *bootInfo) {
        this lockKernel() became duplicative */
     /* lockKernel(); */
     Init_Interrupts(0);
-	// project3 ===
-	Init_VM(bootInfo);
-	// project3 ---
+    // project3 ===
+    // Init_VM(bootInfo);
+    // project3 ---
     Print("Init_SMP\n");
     Init_SMP();
     Print("/Init_SMP\n");
