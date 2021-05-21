@@ -154,6 +154,8 @@ void Identity_Map_Page(pde_t * currentPageDir, unsigned int address,
  * Initialize virtual memory by building page tables
  * for the kernel and physical memory.
  */
+extern int checkPaging();
+
 void Init_VM(struct Boot_Info *bootInfo) {
     /*
      * Hints:
@@ -164,8 +166,72 @@ void Init_VM(struct Boot_Info *bootInfo) {
      * - Do not map a page at address 0; this will help trap
      *   null pointer references
      */
-    TODO_P(PROJECT_VIRTUAL_MEMORY_A,
-           "Build initial kernel page directory and page tables");
+    // PROJECT_VIRTUAL_MEMORY_A,
+	// "Build initial kernel page directory and page tables"
+	if(checkPaging()) {
+		return ;
+	}
+
+	pde_t *pageDirectory;
+	pte_t *pageTable;
+
+	int pageCnt = bootInfo->memSizeKB / 4;
+	int pageTableCnt = pageCnt / NUM_PAGE_TABLE_ENTRIES + ((pageCnt % NUM_PAGE_TABLE_ENTRIES) != 0);
+
+	pageDirectory = (pde_t*)Alloc_Page();
+
+	int i;
+	for(i = 0; i < NUM_PAGE_DIR_ENTRIES; ++i) {
+		if(i > pageTableCnt) {
+			pageDirectory[i].present = 0;
+			pageDirectory[i].flags = 0;
+			pageDirectory[i].accessed = 0;
+			pageDirectory[i].dirty = 0;
+			pageDirectory[i].largePages = 0;
+			pageDirectory[i].globalPage = 0;
+			pageDirectory[i].kernelInfo = 0;
+			pageDirectory[i].pageTableBaseAddr = 0;
+		}
+		else {
+			pageTable = (pte_t*)Alloc_Page();
+			
+			pageDirectory[i].present = 1;
+			pageDirectory[i].flags = VM_READ | VM_WRITE | VM_EXEC | VM_USER;
+			pageDirectory[i].accessed = 0;
+			pageDirectory[i].dirty = 0;
+			pageDirectory[i].largePages = 0;
+			pageDirectory[i].globalPage = 0;
+			pageDirectory[i].kernelInfo = 0;
+			pageDirectory[i].pageTableBaseAddr = 0; //
+
+			int j;
+			for(j = 0; j < NUM_PAGE_TABLE_ENTRIES; ++j) {
+				if(i*NUM_PAGE_TABLE_ENTRIES + j >= pageCnt) {
+					pageTable[j].present = 0;
+					pageTable[j].flags = 0;
+					pageTable[j].accessed = 0;
+					pageTable[j].dirty = 0;
+					pageTable[j].pteAttribute = 0;
+					pageTable[j].globalPage = 0;
+					pageTable[j].kernelInfo = 0;
+					pageTable[j].pageBaseAddr = 0;
+				}
+				else {
+					pageTable[j].present = 0;
+					pageTable[j].flags = VM_READ | VM_WRITE | VM_EXEC | VM_USER;
+					pageTable[j].accessed = 0;
+					pageTable[j].dirty = 0;
+					pageTable[j].pteAttribute = 0;
+					pageTable[j].globalPage = 0;
+					pageTable[j].kernelInfo = 0;
+					pageTable[j].pageBaseAddr = (i * NUM_PAGE_TABLE_ENTRIES + j);
+				}
+			}
+		}
+	}
+
+	Install_Interrupt_Handler(14, Page_Fault_Handler);
+	Enable_Paging(pageDirectory);
 }
 
 void Init_Secondary_VM() {
