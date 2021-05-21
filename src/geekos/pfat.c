@@ -401,7 +401,7 @@ static int PFAT_Read_Entry(struct File *dir, struct VFS_Dir_Entry *entry) {
      * than PFAT directoryEntry objects.
      */
     strncpy(entry->name, pfatDirEntry->fileName,
-            sizeof(pfatDirEntry->fileName));
+            strlen(pfatDirEntry->fileName));
     entry->name[sizeof(pfatDirEntry->fileName)] = '\0';
 
     Copy_Stat(&entry->stats, pfatDirEntry);
