@@ -1,1 +1,1 @@
-# GeekOS codes for OS classes of CS dept. in INU
+# 인천대 컴공 운영체제 GeekOS!
